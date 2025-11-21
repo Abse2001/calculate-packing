@@ -8,6 +8,34 @@ import { combineBounds } from "./geometry/combineBounds"
 
 type Outline = Array<[Point, Point]>
 
+const getSignedAreaFromOutline = (outline: Outline) => {
+  if (outline.length < 3) return 0
+  const vertices = outline.map(([p]) => p)
+  let area = 0
+  for (let i = 0; i < vertices.length; i++) {
+    const { x: x1, y: y1 } = vertices[i]!
+    const { x: x2, y: y2 } = vertices[(i + 1) % vertices.length]!
+    area += x1 * y2 - x2 * y1
+  }
+  return area
+}
+
+const ensureCounterClockwiseOutline = (outline: Outline): Outline => {
+  const signedArea = getSignedAreaFromOutline(outline)
+  if (signedArea >= 0) return outline
+
+  const reversedVertices = [...outline.map(([p]) => p)].reverse()
+  const ccwOutline: Outline = []
+
+  for (let i = 0; i < reversedVertices.length; i++) {
+    const current = reversedVertices[i]!
+    const next = reversedVertices[(i + 1) % reversedVertices.length]!
+    ccwOutline.push([current, next])
+  }
+
+  return ccwOutline
+}
+
 /**
  * Create polygons from pads (inflated by minGap) along with their AABB in world coords
  */
@@ -223,7 +251,8 @@ export const constructOutlinesFromPackedComponents = (
 
     // Simplify collinear segments in the outline
     const simplifiedOutline = simplifyCollinearSegments(outline)
-    outlines.push(simplifiedOutline)
+    const ccwOutline = ensureCounterClockwiseOutline(simplifiedOutline)
+    outlines.push(ccwOutline)
   }
 
   return outlines
