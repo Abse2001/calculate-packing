@@ -8,6 +8,63 @@ import { combineBounds } from "./geometry/combineBounds"
 
 type Outline = Array<[Point, Point]>
 
+const getOutlineVertices = (outline: Outline): Point[] => {
+  if (outline.length === 0) return []
+
+  const vertices: Point[] = [outline[0]![0]]
+
+  for (const [, end] of outline) {
+    vertices.push(end)
+  }
+
+  if (vertices.length > 1) {
+    const first = vertices[0]!
+    const last = vertices[vertices.length - 1]!
+
+    if (first.x === last.x && first.y === last.y) {
+      vertices.pop()
+    }
+  }
+
+  return vertices
+}
+
+const buildSegmentsFromVertices = (vertices: Point[]): Outline => {
+  const segments: Outline = []
+
+  for (let i = 0; i < vertices.length; i++) {
+    const a = vertices[i]!
+    const b = vertices[(i + 1) % vertices.length]!
+    segments.push([
+      { x: a.x, y: a.y },
+      { x: b.x, y: b.y },
+    ])
+  }
+
+  return segments
+}
+
+const ensureCounterClockwiseOutline = (outline: Outline): Outline => {
+  const vertices = getOutlineVertices(outline)
+
+  if (vertices.length < 3) return outline
+
+  let signedArea = 0
+
+  for (let i = 0; i < vertices.length; i++) {
+    const { x: x1, y: y1 } = vertices[i]!
+    const { x: x2, y: y2 } = vertices[(i + 1) % vertices.length]!
+    signedArea += x1 * y2 - x2 * y1
+  }
+
+  if (signedArea < 0) {
+    const reversedVertices = [...vertices].reverse()
+    return buildSegmentsFromVertices(reversedVertices)
+  }
+
+  return outline
+}
+
 /**
  * Create polygons from pads (inflated by minGap) along with their AABB in world coords
  */
@@ -223,7 +280,8 @@ export const constructOutlinesFromPackedComponents = (
 
     // Simplify collinear segments in the outline
     const simplifiedOutline = simplifyCollinearSegments(outline)
-    outlines.push(simplifiedOutline)
+    const ccwOutline = ensureCounterClockwiseOutline(simplifiedOutline)
+    outlines.push(ccwOutline)
   }
 
   return outlines
