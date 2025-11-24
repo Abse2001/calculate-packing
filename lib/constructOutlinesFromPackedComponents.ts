@@ -8,6 +8,48 @@ import { combineBounds } from "./geometry/combineBounds"
 
 type Outline = Array<[Point, Point]>
 
+const computeSignedAreaFromOutline = (outline: Outline) => {
+  if (outline.length === 0) return 0
+
+  const points: Point[] = []
+  for (let i = 0; i < outline.length; i++) {
+    const [start, end] = outline[i]!
+    if (i === 0) points.push(start)
+    points.push(end)
+  }
+
+  // Ensure closure for area calculation
+  if (
+    points.length > 0 &&
+    (points[0]!.x !== points[points.length - 1]!.x ||
+      points[0]!.y !== points[points.length - 1]!.y)
+  ) {
+    points.push(points[0]!)
+  }
+
+  let area = 0
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i]!
+    const p2 = points[i + 1]!
+    area += p1.x * p2.y - p2.x * p1.y
+  }
+
+  return area / 2
+}
+
+const ensureCcwOutline = (outline: Outline): Outline => {
+  const signedArea = computeSignedAreaFromOutline(outline)
+  if (signedArea < 0) {
+    // Reverse segment order and direction to produce CCW orientation
+    return outline
+      .slice()
+      .reverse()
+      .map(([start, end]) => [end, start]) as Outline
+  }
+
+  return outline
+}
+
 /**
  * Create polygons from pads (inflated by minGap) along with their AABB in world coords
  */
@@ -223,7 +265,8 @@ export const constructOutlinesFromPackedComponents = (
 
     // Simplify collinear segments in the outline
     const simplifiedOutline = simplifyCollinearSegments(outline)
-    outlines.push(simplifiedOutline)
+    const ccwOutline = ensureCcwOutline(simplifiedOutline)
+    outlines.push(ccwOutline)
   }
 
   return outlines
